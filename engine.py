@@ -356,14 +356,38 @@ class InterviewSession:
         self.done = False
 
     def _advance_to_next_day(self) -> bool:
-        """Returns False if the plan is exhausted."""
+        """
+        Returns False only if there is truly nothing left to ask.
+        If the original plan is exhausted but the spec's minimums
+        (>=8 questions, >=4 distinct days) haven't been met yet, this pulls
+        additional not-yet-asked curriculum days in rather than ending early
+        — the interview must never stop short of the required minimums
+        just because a strong candidate breezed through the initial plan
+        without triggering any follow-ups.
+        """
         if self.plan_index >= len(self.plan):
-            return False
+            under_minimum = self.questions_asked < MIN_QUESTIONS or len(self.distinct_days) < MIN_DAYS
+            if under_minimum and self.questions_asked < MAX_QUESTIONS:
+                self._extend_plan()
+            if self.plan_index >= len(self.plan):
+                return False
         self.current_day = self.plan[self.plan_index]
         self.plan_index += 1
         self.followups_used = 0
         self.asked_objectives_by_day.setdefault(self.current_day, set())
         return True
+
+    def _extend_plan(self):
+        """Append one more not-yet-used curriculum day to the plan."""
+        used = set(self.plan)
+        # Prefer days from the candidate's own mission history first...
+        candidates_pool = [m.get("day") for m in self.candidate.missions if m.get("day") not in used]
+        # ...then fall back to any curriculum day at all.
+        candidates_pool += [d for d in CURRICULUM.all_day_numbers() if d not in used]
+        for d in candidates_pool:
+            if d not in used and CURRICULUM.get(d):
+                self.plan.append(d)
+                return
 
     def start(self) -> str:
         ok = self._advance_to_next_day()
