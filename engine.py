@@ -124,7 +124,7 @@ class CandidateProfile:
         scored.sort(key=lambda x: -x[0])
         weak_days = [d for _, d in scored]
 
-        plan: list[int] = []
+                plan: list[int] = []
 
         # Warm-up: earliest strong day (usually Day 1) sets a comfortable tone.
         if strong:
@@ -137,22 +137,21 @@ class CandidateProfile:
                 plan.append(d)
 
         # Mix in up to 2 strong days later as a cross-check against the
-        # weak-day findings (a candidate who's actually strong everywhere
-        # should still look strong here).
+        # weak-day findings.
         for d in sorted(strong)[:2]:
             if d not in plan:
                 plan.append(d)
 
-        # Backfill from core, broadly-applicable curriculum days if the
-        # candidate's own history doesn't give us enough distinct days.
+        # Backfill from core, broadly-applicable curriculum days.
         core_backfill = [7, 10, 12, 16, 22, 31, 8, 21, 27]
+
         for d in core_backfill:
             if len(plan) >= MIN_QUESTIONS:
                 break
             if d not in plan and CURRICULUM.get(d):
                 plan.append(d)
 
-          return plan[:MIN_QUESTIONS]   # cap plan length; follow-ups will fill out the rest
+        return plan[:MIN_QUESTIONS]   # cap plan length; follow-ups will fill out the rest
 
     def signal_for_day(self, day_number: int) -> dict:
         for m in self.missions:
