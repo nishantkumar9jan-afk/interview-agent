@@ -147,12 +147,12 @@ class CandidateProfile:
         # candidate's own history doesn't give us enough distinct days.
         core_backfill = [7, 10, 12, 16, 22, 31, 8, 21, 27]
         for d in core_backfill:
-            if len(plan) >= min_days and len(plan) >= 5:
+            if len(plan) >= MIN_QUESTIONS:
                 break
             if d not in plan and CURRICULUM.get(d):
                 plan.append(d)
 
-        return plan[:7]  # cap plan length; follow-ups will fill out the rest
+      return plan[:MIN_QUESTIONS]   # cap plan length; follow-ups will fill out the rest
 
     def signal_for_day(self, day_number: int) -> dict:
         for m in self.missions:
@@ -420,10 +420,26 @@ class InterviewSession:
 
         # move to next day
         advanced = self._advance_to_next_day()
-        if not advanced:
-            self.done = True
-            feedback = generate_feedback(self.candidate, self.transcript, self.day_scores)
-            return {"reply": "Interview completed. Thanks for your time!", "done": True, "feedback": feedback}
+
+if not advanced:
+    if self.questions_asked < MIN_QUESTIONS:
+        return {
+            "reply": "Please continue the interview.",
+            "done": False
+        }
+
+    self.done = True
+    feedback = generate_feedback(
+        self.candidate,
+        self.transcript,
+        self.day_scores
+    )
+
+    return {
+        "reply": "Interview completed. Thanks for your time!",
+        "done": True,
+        "feedback": feedback
+    }
 
         day = CURRICULUM.get(self.current_day)
         question = generate_question(
