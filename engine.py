@@ -124,7 +124,7 @@ class CandidateProfile:
         scored.sort(key=lambda x: -x[0])
         weak_days = [d for _, d in scored]
 
-                plan: list[int] = []
+        plan: list[int] = []
 
         # Warm-up: earliest strong day (usually Day 1) sets a comfortable tone.
         if strong:
@@ -137,21 +137,22 @@ class CandidateProfile:
                 plan.append(d)
 
         # Mix in up to 2 strong days later as a cross-check against the
-        # weak-day findings.
+        # weak-day findings (a candidate who's actually strong everywhere
+        # should still look strong here).
         for d in sorted(strong)[:2]:
             if d not in plan:
                 plan.append(d)
 
-        # Backfill from core, broadly-applicable curriculum days.
+        # Backfill from core, broadly-applicable curriculum days if the
+        # candidate's own history doesn't give us enough distinct days.
         core_backfill = [7, 10, 12, 16, 22, 31, 8, 21, 27]
-
         for d in core_backfill:
-            if len(plan) >= MIN_QUESTIONS:
+            if len(plan) >= min_days and len(plan) >= 5:
                 break
             if d not in plan and CURRICULUM.get(d):
                 plan.append(d)
 
-        return plan[:MIN_QUESTIONS]   # cap plan length; follow-ups will fill out the rest
+        return plan[:7]  # cap plan length; follow-ups will fill out the rest
 
     def signal_for_day(self, day_number: int) -> dict:
         for m in self.missions:
@@ -417,51 +418,24 @@ class InterviewSession:
             feedback = generate_feedback(self.candidate, self.transcript, self.day_scores)
             return {"reply": "Interview completed. Thanks for your time!", "done": True, "feedback": feedback}
 
-                # move to next day
+        # move to next day
         advanced = self._advance_to_next_day()
-
         if not advanced:
-            if self.questions_asked < MIN_QUESTIONS:
-                return {
-                    "reply": "Please continue the interview.",
-                    "done": False
-                }
-
             self.done = True
-            feedback = generate_feedback(
-                self.candidate,
-                self.transcript,
-                self.day_scores
-            )
-
-            return {
-                "reply": "Interview completed. Thanks for your time!",
-                "done": True,
-                "feedback": feedback
-            }
+            feedback = generate_feedback(self.candidate, self.transcript, self.day_scores)
+            return {"reply": "Interview completed. Thanks for your time!", "done": True, "feedback": feedback}
 
         day = CURRICULUM.get(self.current_day)
         question = generate_question(
-            day,
-            self.candidate,
-            is_warmup=False,
-            asked_objs=self.asked_objectives_by_day.get(
-                self.current_day, set()
-            ),
+            day, self.candidate, is_warmup=False,
+            asked_objs=self.asked_objectives_by_day.get(self.current_day, set()),
         )
         self.current_question = question
         self.questions_asked += 1
         self.distinct_days.add(self.current_day)
-        self.transcript.append({
-            "role": "interviewer",
-            "day": self.current_day,
-            "content": question
-        })
+        self.transcript.append({"role": "interviewer", "day": self.current_day, "content": question})
         return {"reply": question, "done": False}
 
-    
-
-        
 
 # ---------------------------------------------------------------------------
 # In-memory session store (no persistence required per spec)
