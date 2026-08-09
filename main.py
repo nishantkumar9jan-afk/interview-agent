@@ -16,10 +16,15 @@ per the spec's out-of-scope list (no accounts, no long-term history).
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from pathlib import Path
 from typing import Optional
 
 from engine import SESSIONS, MIN_QUESTIONS, MIN_DAYS
+
+STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="AI Interview Agent", version="1.0.0")
 
@@ -73,6 +78,19 @@ def interview(req: InterviewRequest):
 
     result = session.submit_answer(req.message)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Frontend — a minimal chat UI served from the same app, same origin, so it
+# works out of the box with no CORS setup and no separate deployment.
+# Registered AFTER /api routes so it never shadows them.
+# ---------------------------------------------------------------------------
+@app.get("/")
+def root():
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 if __name__ == "__main__":

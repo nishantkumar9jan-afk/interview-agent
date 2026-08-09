@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Interview Agent</title>
+<style>
+  :root {
+    --bg: #0B0E14;
+    --surface: #131826;
+    --surface-2: #1A2133;
+    --border: #262E42;
+    --text: #EDEFF5;
+    --text-muted: #8A93A6;
+    --accent: #4C8DFF;
+    --signal: #3FB950;
+    --miss: #E5484D;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .shell { width: 100%; max-width: 640px; min-height: 100vh; display: flex; flex-direction: column; }
+  header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  header .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--signal); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 700; }
+  header .sub { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+  .setup {
+    padding: 18px;
+    display: flex; flex-direction: column; gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .setup label { font-size: 12.5px; color: var(--text-muted); }
+  .setup select, .setup button {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+  }
+  .setup button {
+    background: linear-gradient(135deg, #FF6B35, #FF8C5A);
+    color: #16110B;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+  }
+  .setup button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cand-meta { font-size: 12px; color: var(--text-muted); }
+
+  #chat {
+    flex: 1;
+    padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow-y: auto;
+  }
+  .msg { max-width: 82%; padding: 11px 14px; border-radius: 14px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .msg.bot { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .typing { align-self: flex-start; font-size: 12.5px; color: var(--text-muted); padding-left: 4px; }
+
+  .feedback-card {
+    align-self: stretch;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-top: 4px;
+  }
+  .feedback-card h3 { margin: 0 0 8px; font-size: 15px; }
+  .feedback-card h4 { margin: 14px 0 6px; font-size: 12.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .feedback-card p { margin: 0; font-size: 13.5px; color: var(--text); }
+  .feedback-card ul { margin: 0; padding-left: 18px; font-size: 13.5px; }
+  .feedback-card li { margin-bottom: 5px; }
+  .feedback-card .gaps li::marker { color: var(--miss); }
+  .feedback-card .strengths li::marker { color: var(--signal); }
+
+  #inputRow {
+    display: flex; gap: 8px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+  }
+  #inputRow textarea {
+    flex: 1;
+    resize: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 11px 13px;
+    font-size: 14px;
+    font-family: inherit;
+    min-height: 44px;
+    max-height: 120px;
+  }
+  #inputRow button {
+    padding: 0 20px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #inputRow button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <span class="dot"></span>
+    <h1>AI Interview Agent</h1>
+    <span class="sub" id="statusLabel">not started</span>
+  </header>
+
+  <div class="setup" id="setupPanel">
+    <label for="candSelect">Choose a candidate to interview</label>
+    <select id="candSelect"></select>
+    <div class="cand-meta" id="candMeta"></div>
+    <button id="startBtn">Start Interview</button>
+  </div>
+
+  <div id="chat"></div>
+
+  <div id="inputRow" class="hidden">
+    <textarea id="msgInput" placeholder="Type the candidate's answer..." rows="1"></textarea>
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const candSelect = document.getElementById("candSelect");
+const candMeta = document.getElementById("candMeta");
+const startBtn = document.getElementById("startBtn");
+const setupPanel = document.getElementById("setupPanel");
+const inputRow = document.getElementById("inputRow");
+const msgInput = document.getElementById("msgInput");
+const sendBtn = document.getElementById("sendBtn");
+const statusLabel = document.getElementById("statusLabel");
+
+let candidates = [];
+let sessionId = null;
+let interviewDone = false;
+
+function addMessage(role, text) {
+  const div = document.createElement("div");
+  div.className = "msg " + (role === "bot" ? "bot" : "user");
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showTyping() {
+  const div = document.createElement("div");
+  div.className = "typing";
+  div.id = "typingIndicator";
+  div.textContent = "Interviewer is typing...";
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+function hideTyping() {
+  const t = document.getElementById("typingIndicator");
+  if (t) t.remove();
+}
+
+function renderFeedback(fb) {
+  const card = document.createElement("div");
+  card.className = "feedback-card";
+  card.innerHTML = `
+    <h3>📋 Interview Feedback</h3>
+    <p>${escapeHtml(fb.summary || "")}</p>
+    <h4>Strengths</h4>
+    <ul class="strengths">${(fb.strengths || []).map(s => `<li>${escapeHtml(s)}</li>`).join("") || "<li>None noted</li>"}</ul>
+    <h4>Gaps</h4>
+    <ul class="gaps">${(fb.gaps || []).map(s => `<li>${escapeHtml(s)}</li>`).join("") || "<li>None noted</li>"}</ul>
+    <h4>Next Steps</h4>
+    <ul>${(fb.next || []).map(s => `<li>${escapeHtml(s)}</li>`).join("") || "<li>None noted</li>"}</ul>
+  `;
+  chat.appendChild(card);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function loadCandidates() {
+  const res = await fetch("/static/candidates.json");
+  const data = await res.json();
+  candidates = data.candidates;
+  candSelect.innerHTML = candidates.map(c =>
+    `<option value="${c.member.id}">${c.member.id} — ${c.member.name} (${c.member.jobRole})</option>`
+  ).join("");
+  updateMeta();
+}
+candSelect.addEventListener("change", updateMeta);
+function updateMeta() {
+  const c = candidates.find(c => c.member.id === candSelect.value);
+  if (!c) return;
+  candMeta.textContent = `${c.member.yearsExperience} yrs experience · ${c.member.education} · ${c.missions.length} missions on record`;
+}
+
+startBtn.addEventListener("click", async () => {
+  const c = candidates.find(c => c.member.id === candSelect.value);
+  if (!c) return;
+  sessionId = crypto.randomUUID();
+  startBtn.disabled = true;
+  startBtn.textContent = "Starting...";
+  statusLabel.textContent = "in progress";
+
+  try {
+    showTyping();
+    const res = await fetch("/api/interview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, candidate: c }),
+    });
+    hideTyping();
+    const data = await res.json();
+    setupPanel.classList.add("hidden");
+    inputRow.classList.remove("hidden");
+    addMessage("bot", data.reply);
+    if (data.done) finishInterview(data);
+  } catch (e) {
+    hideTyping();
+    addMessage("bot", "⚠️ Couldn't reach the server. If this is the first request in a while, the free-tier server may be waking up — try again in ~40 seconds.");
+    startBtn.disabled = false;
+    startBtn.textContent = "Start Interview";
+  }
+});
+
+async function sendMessage() {
+  const text = msgInput.value.trim();
+  if (!text || interviewDone) return;
+  addMessage("user", text);
+  msgInput.value = "";
+  sendBtn.disabled = true;
+  showTyping();
+  try {
+    const res = await fetch("/api/interview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, message: text }),
+    });
+    hideTyping();
+    const data = await res.json();
+    addMessage("bot", data.reply);
+    if (data.done) finishInterview(data);
+  } catch (e) {
+    hideTyping();
+    addMessage("bot", "⚠️ Network error — please try sending that again.");
+  }
+  sendBtn.disabled = false;
+}
+
+function finishInterview(data) {
+  interviewDone = true;
+  statusLabel.textContent = "completed";
+  inputRow.classList.add("hidden");
+  if (data.feedback) renderFeedback(data.feedback);
+}
+
+sendBtn.addEventListener("click", sendMessage);
+msgInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+loadCandidates();
+</script>
+</body>
+</html>
