@@ -152,7 +152,7 @@ class CandidateProfile:
             if d not in plan and CURRICULUM.get(d):
                 plan.append(d)
 
-      return plan[:MIN_QUESTIONS]   # cap plan length; follow-ups will fill out the rest
+          return plan[:MIN_QUESTIONS]   # cap plan length; follow-ups will fill out the rest
 
     def signal_for_day(self, day_number: int) -> dict:
         for m in self.missions:
@@ -418,40 +418,51 @@ class InterviewSession:
             feedback = generate_feedback(self.candidate, self.transcript, self.day_scores)
             return {"reply": "Interview completed. Thanks for your time!", "done": True, "feedback": feedback}
 
-        # move to next day
+                # move to next day
         advanced = self._advance_to_next_day()
 
-if not advanced:
-    if self.questions_asked < MIN_QUESTIONS:
-        return {
-            "reply": "Please continue the interview.",
-            "done": False
-        }
+        if not advanced:
+            if self.questions_asked < MIN_QUESTIONS:
+                return {
+                    "reply": "Please continue the interview.",
+                    "done": False
+                }
 
-    self.done = True
-    feedback = generate_feedback(
-        self.candidate,
-        self.transcript,
-        self.day_scores
-    )
+            self.done = True
+            feedback = generate_feedback(
+                self.candidate,
+                self.transcript,
+                self.day_scores
+            )
 
-    return {
-        "reply": "Interview completed. Thanks for your time!",
-        "done": True,
-        "feedback": feedback
-    }
+            return {
+                "reply": "Interview completed. Thanks for your time!",
+                "done": True,
+                "feedback": feedback
+            }
 
         day = CURRICULUM.get(self.current_day)
         question = generate_question(
-            day, self.candidate, is_warmup=False,
-            asked_objs=self.asked_objectives_by_day.get(self.current_day, set()),
+            day,
+            self.candidate,
+            is_warmup=False,
+            asked_objs=self.asked_objectives_by_day.get(
+                self.current_day, set()
+            ),
         )
         self.current_question = question
         self.questions_asked += 1
         self.distinct_days.add(self.current_day)
-        self.transcript.append({"role": "interviewer", "day": self.current_day, "content": question})
+        self.transcript.append({
+            "role": "interviewer",
+            "day": self.current_day,
+            "content": question
+        })
         return {"reply": question, "done": False}
 
+    
+
+        
 
 # ---------------------------------------------------------------------------
 # In-memory session store (no persistence required per spec)
